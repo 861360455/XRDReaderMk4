@@ -140,16 +140,41 @@ def step3_peak_matching():
 
     # 读取实验数据
     try:
-        # 若文件是空格分隔或逗号分隔，需要酌情修改下面的参数
-        df = pd.read_csv(uploaded_file, delim_whitespace=True, header=None, names=["two_theta", "intensity"])
+        # 确保文件读取从头开始
+        uploaded_file.seek(0)
+
+        # 先尝试读取文本内容判断分隔符
+        content = uploaded_file.read().decode("utf-8", errors="ignore")
+        uploaded_file.seek(0)  # 再次给 pd.read_csv 用
+
+        # 自动判断分隔符
+        if "\t" in content:
+            sep = "\t"
+        elif "," in content:
+            sep = ","
+        else:
+            sep = r"\s+"
+
+        # 读取数据，加 comment 过滤掉 # 开头的注释行
+        df = pd.read_csv(uploaded_file, sep=sep, comment="#", header=None, names=["two_theta", "intensity"])
+
+        # 检查是否为两列数据
+        if df.shape[1] != 2:
+            raise ValueError("文件格式错误：应为两列数据（角度、强度）")
+
+        # 输出预览
         st.write("实验谱预览：", df.head())
         exp_x = df["two_theta"].values
         exp_y = df["intensity"].values
+        # 写入 session state
         st.session_state["exp_x"] = exp_x
         st.session_state["exp_y"] = exp_y
+
     except Exception as e:
         st.error(f"读取 XRD 文件出错：{e}")
-        return
+        st.session_state["exp_x"] = None
+        st.session_state["exp_y"] = None
+        st.stop()
 
     # 2. 获取 Step2 生成的 pattern
     discrete_patterns = st.session_state["discrete_patterns"]
